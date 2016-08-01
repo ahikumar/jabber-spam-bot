@@ -6,6 +6,36 @@
 
 import xmpppy
 import config
+import logging
+from Queue import Queue
+from multiprocessing import Process 
+
+
+format = "%(asctime)s  %(filename)s  %(levelname)s:\t%(message)s"
+if config.debug:
+	logging.basicConfig(format=format, level=logging.DEBUG)
+else:
+	logging.basicConfig(format=format)
+
+
+class NoSendersError(Exception):
+	def __init__(self):
+		logging.critical("No senders to start sending")
+		exit(1)
+
+class NoRecipientsError(Exception):
+	def __init__(self):
+		logging.critical("No recipients to start sending")
+		exit(1)
+
+class AuthenticationError(Exception):
+	def __init__(self, user):
+		logging.error("User '%s' can not authenticate the server" % user)
+
+class ConnectError(Exception):
+	def __init__(self, user):
+		logging.error("User '%s' can not connect to the server" % user)
+
 
 
 
@@ -21,7 +51,10 @@ class Request(object):
 			text = file.read()
 			lines = text.split("\n")
 			values = [line.split() for line in lines if line]
-			senders = {key:value for (key, value) in values}
+			senders = [[key, value] for (key, value) in values]
+
+			if not senders:
+				NoSendersError()
 
 		return senders
 
@@ -34,42 +67,42 @@ class Request(object):
 			lines = text.split("\n")
 			recipients = [line for line in lines if line]
 
+			if not recipients:
+				NoRecipientsError()
+
 		return recipients
 
 
 
 
-class Bot(object):
-	""" Основной класс спам-бота """
+def spam_bot(user, password, recipients):
+	logging.info("User '%s' started sending" % user)
 
-	def __init__(self, user, password, server):
-		self.bot = xmpppy.Client(server, debug=[])
+	jid = xmpppy.protocol.JID(user)
+	bot = xmpppy.Client(jid.getDomain(), debug=[])
 
-		try:
-			self.bot.connect()
-		except AttributeError:
-			print ("Пользователя '%s' нет на сервере %s" % (user, server))
-			return
-		print ("Пользователь '%s' подключился к серверу" % user)
+	try:
+		bot.connect()
+	except:
+		ConnectError(user)
+		return
 
-		self.bot.auth(user, password)
-		print ("Пользователь '%s' авторизован" % user)
+	auth = bot.auth(jid.getNode(), password)
+	if not auth:
+		AuthenticationError(user)
+		bot.disconnect()
+		return
 
-		self.bot.online = True
-		self.bot.sendInitPresence()
+	for recipient in recipients:
+		#message = xmpppy.protocol.Message(to=recipient, body=config.message, subject=config.subject)
+		message = xmpppy.protocol.Message()
+		message.setTo(recipient)
+		message.setSubject(config.subject)
+		message.setBody(config.message)
+		bot.send(message)
 
-
-	def send_message(self, recipient):
-
-		print ("Отправка соощения '%s'" % recipient)
-		self.bot.send(xmpppy.protocol.Message(recipient, config.message))
-
-
-	def __del__(self):
-
-		self.bot.online = False
-
-		self.bot.disconnect()
+	logging.info("User '%s' finished sending" % user)
+	bot.disconnect()
 
 
 
@@ -78,14 +111,22 @@ class Bot(object):
 def main():
 	""" Точка входа в программу """
 
+	threads = config.threads
 	senders = Request().get_senders()
 	recipients = Request().get_recipients()
 
-	for (sender, password) in senders.items():
-		server = sender.split("@")[-1]
-		bot = Bot(sender, password, server)
-		for recipient in recipients:
-			bot.send_message(recipient)
+	queue = Queue(threads)
+	while senders:
+		user, password = senders.pop()
+		process = Process(target=spam_bot, args=(user, password, recipients))
+		process.start()
+
+		if queue.empty() or queue.qsize() < threads:
+			queue.put(process)
+		else:
+			old_process = queue.get()
+			old_process.join()
+			queue.put(process)
 
 
 
