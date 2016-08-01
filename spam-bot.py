@@ -11,6 +11,7 @@ from Queue import Queue
 from multiprocessing import Process 
 
 
+# Настройка конфигурации лога
 format = "%(asctime)s  %(filename)s  %(levelname)s:\t%(message)s"
 if config.debug:
 	logging.basicConfig(format=format, level=logging.DEBUG)
@@ -18,6 +19,7 @@ else:
 	logging.basicConfig(format=format)
 
 
+# Описание классов-исключений
 class NoSendersError(Exception):
 	def __init__(self):
 		logging.critical("No senders to start sending")
@@ -45,7 +47,7 @@ class Request(object):
 	""" Класс для получения сендеров и реципиентов """
 
 	def get_senders(self):
-		""" Возвращает словарь отправителей вида {user:passwd, ...} """
+		""" Возвращает список отправителей вида [[user, passwd], ...] """
 
 		with open("senders") as file:
 			text = file.read()
@@ -76,6 +78,8 @@ class Request(object):
 
 
 def spam_bot(user, password, recipients):
+	""" Реализация спам-бота """
+
 	logging.info("User '%s' started sending" % user)
 
 	jid = xmpppy.protocol.JID(user)
@@ -94,7 +98,6 @@ def spam_bot(user, password, recipients):
 		return
 
 	for recipient in recipients:
-		#message = xmpppy.protocol.Message(to=recipient, body=config.message, subject=config.subject)
 		message = xmpppy.protocol.Message()
 		message.setTo(recipient)
 		message.setSubject(config.subject)
@@ -111,16 +114,21 @@ def spam_bot(user, password, recipients):
 def main():
 	""" Точка входа в программу """
 
+	# Получить списки получателей, отправителей и кол-во потоков запуска
 	threads = config.threads
 	senders = Request().get_senders()
 	recipients = Request().get_recipients()
 
 	queue = Queue(threads)
 	while senders:
+		# Обходить сендеров по одному, забирая их из списка и запуская процесс
 		user, password = senders.pop()
 		process = Process(target=spam_bot, args=(user, password, recipients))
 		process.start()
 
+		# Далее если очередь процессов пустая или она меньше кол-ва потоков для
+		# запуска, то просто добавляем процесс в очередь, иначе ждём последний
+		# процесс из очереди и добавляем наш процесс в конец
 		if queue.empty() or queue.qsize() < threads:
 			queue.put(process)
 		else:
