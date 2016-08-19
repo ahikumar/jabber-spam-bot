@@ -4,13 +4,12 @@
 
 
 
-# Какое каоличество потоков будет работать одновременно
+# The number of distribution streams
 threads = 5
 
-# Если установлен в True, то будет выводится промежуточная информация
-# с пометками INFO и DEBUG в лог
+# Show debug messages
 debug = True
 
-# Сообщение состоит из заголовка и самого сообщения
+# Subject and message body for sending
 subject = "Reading it!"
 message = "It's SPAM!!!"

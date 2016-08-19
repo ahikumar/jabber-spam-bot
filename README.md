@@ -1,22 +1,21 @@
 # Jabber-spam
 
-Бот для массойвой рассылки сообщений через протокол xmpp.
+Spam bot module for mass mailing messages via xmpp.
 
 
-### Запуск:
+### Launch:
 
-Для запуска:  
+For launch:  
 ```Bash
 $ python spam-bot.py
 ```
 
 
-### Настройка:
+### Setting:
 
-Бот берёт получателей и отправителей из файлов `recipients` и `senders` соответственно. Настройка конфигурации бота производится в файле `config.py`.
-В том же файле находится переменная для сообщения рассылки и переменная отвечающая за многопоточную рассылку.  
+Bot takes the recipient and sender respectively of the file  `recipients` and `senders`. Bot configuration is in the file `config.py`.  
 
-По умолчанию полный лог ведётся в stdout. Однако можно убрать отладочные сообщения в конфиге:  
+Log conducted in `stdout`, but you can remove it:  
 ```Python
 # config.py
 
